@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const API = axios.create({
-  baseURL: 'https://flavornest.onrender.com' // Live backend URL
+  baseURL: 'https://flavornest.onrender.com/' // live backend URL
 });
 
 export function setAuthToken(token) {
@@ -9,7 +9,7 @@ export function setAuthToken(token) {
   else delete API.defaults.headers.common['Authorization'];
 }
 
-// Initialize token from localStorage on import
+// Init token from localStorage
 const token = localStorage.getItem('flavornest_token');
 if (token) setAuthToken(token);
 
