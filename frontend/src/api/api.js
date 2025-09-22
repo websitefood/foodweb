@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const API = axios.create({
-  baseURL: 'https://foodweb-goen.onrender.com' // Live backend URL
+  baseURL: 'https://flavornest.onrender.com' // Live backend URL
 });
 
 export function setAuthToken(token) {
