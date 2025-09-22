@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const API = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:4000'
+  baseURL: 'https://foodweb-goen.onrender.com' // Live backend URL
 });
 
 export function setAuthToken(token) {
@@ -9,7 +9,7 @@ export function setAuthToken(token) {
   else delete API.defaults.headers.common['Authorization'];
 }
 
-// Init from localStorage on import
+// Initialize token from localStorage on import
 const token = localStorage.getItem('flavornest_token');
 if (token) setAuthToken(token);
 
