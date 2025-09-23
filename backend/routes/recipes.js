@@ -1,82 +1,161 @@
 const express = require('express');
 const router = express.Router();
+const pool = require('../db');
 const multer = require('multer');
-const path = require('path');
-const pool = require('../config/db');
-const { v4: uuidv4 } = require('uuid');
 const jwt = require('jsonwebtoken');
+const JWT_SECRET = 'supersecretkey';
 
-// Multer local storage
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, path.join(__dirname, '..', 'uploads')),
-  filename: (req, file, cb) => cb(null, `${Date.now()}-${uuidv4()}-${file.originalname}`)
-});
-const upload = multer({ storage });
+const upload = multer({ dest: 'uploads/' });  // Save uploads in /uploads/:contentReference[oaicite:7]{index=7}
 
-// Auth middleware
-function auth(req, res, next) {
-  const h = req.headers.authorization;
-  if (!h) return res.status(401).json({ error: 'Unauthorized' });
-  const token = h.split(' ')[1];
-  try {
-    const p = jwt.verify(token, process.env.JWT_SECRET || 'dev');
-    req.userId = p.id;
+// Middleware to verify JWT token
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader) return res.sendStatus(401);
+  const token = authHeader.split(' ')[1];
+  if (!token) return res.sendStatus(401);
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) return res.sendStatus(403);
+    req.user = user;
     next();
-  } catch (e) {
-    return res.status(401).json({ error: 'Invalid token' });
-  }
+  });
 }
 
-// Create recipe
-router.post('/', auth, upload.array('photos', 8), async (req, res) => {
-  const { title, short, ingredients, steps, prep, cook, tags } = req.body;
-  const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-  const photos = (req.files || []).map(f => `/uploads/${path.basename(f.path)}`);
+// GET all recipes
+router.get('/', async (req, res) => {
   try {
-    const result = await pool.query(
-      `INSERT INTO recipes 
-      (title, slug, short, description, ingredients, steps, photos, prep, cook, tags, author_id)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
-      [title, slug, short, short, ingredients, steps, photos, prep, cook, tags, req.userId]
-    );
-    res.json(result.rows[0]);
-  } catch (e) {
-    res.status(500).json({ error: e.message });
+    const recipesRes = await pool.query('SELECT id, title, ingredients, instructions, image_path FROM recipes ORDER BY id DESC');
+    res.json(recipesRes.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
-// List recipes
-router.get('/', async (req, res) => {
-  const result = await pool.query(
-    'SELECT id,title,slug,short,photos,prep,cook,tags,rating FROM recipes ORDER BY created_at DESC LIMIT 200'
-  );
-  res.json(result.rows);
+// GET recipe by ID with comments, like count, save count
+router.get('/:id', async (req, res) => {
+  const recipeId = req.params.id;
+  try {
+    // Get recipe
+    const recipeRes = await pool.query(
+      'SELECT id, title, ingredients, instructions, image_path FROM recipes WHERE id = $1',
+      [recipeId]
+    );
+    if (recipeRes.rows.length === 0) {
+      return res.status(404).json({ message: 'Recipe not found' });
+    }
+    const recipe = recipeRes.rows[0];
+    // Get comments and usernames
+    const commentsRes = await pool.query(
+      'SELECT comments.id, comments.comment, users.name AS username FROM comments JOIN users ON comments.user_id = users.id WHERE comments.recipe_id = $1',
+      [recipeId]
+    );
+    const comments = commentsRes.rows;
+    // Count likes
+    const likesRes = await pool.query('SELECT COUNT(*) FROM likes WHERE recipe_id = $1', [recipeId]);
+    const likeCount = parseInt(likesRes.rows[0].count);
+    // Count saves
+    const savesRes = await pool.query('SELECT COUNT(*) FROM saves WHERE recipe_id = $1', [recipeId]);
+    const saveCount = parseInt(savesRes.rows[0].count);
+
+    res.json({ recipe, comments, likes: likeCount, saves: saveCount });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
 });
 
-// Get recipe by slug
-router.get('/:slug', async (req, res) => {
-  const result = await pool.query('SELECT * FROM recipes WHERE slug=$1', [req.params.slug]);
-  if (!result.rows[0]) return res.status(404).json({ error: 'Not found' });
-  res.json(result.rows[0]);
+// POST create a new recipe (with image upload)
+router.post('/', authenticateToken, upload.single('image'), async (req, res) => {
+  try {
+    const { title, ingredients, instructions } = req.body;
+    const imagePath = req.file ? req.file.path : null;
+    const userId = req.user.id;
+    const newRecipe = await pool.query(
+      'INSERT INTO recipes (user_id, title, ingredients, instructions, image_path) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+      [userId, title, ingredients, instructions, imagePath]
+    );
+    res.json({ id: newRecipe.rows[0].id });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
 });
 
-// Add comment
-router.post('/:slug/comments', auth, async (req, res) => {
-  const { text } = req.body;
-  const recipeRes = await pool.query('SELECT id FROM recipes WHERE slug=$1', [req.params.slug]);
-  if (!recipeRes.rows[0]) return res.status(404).json({ error: 'Recipe not found' });
-  const recipeId = recipeRes.rows[0].id;
-  await pool.query('INSERT INTO comments (recipe_id, user_id, text) VALUES ($1,$2,$3)', [recipeId, req.userId, text]);
-  res.json({ ok: true });
+// POST like a recipe
+router.post('/:id/like', authenticateToken, async (req, res) => {
+  const recipeId = req.params.id;
+  const userId = req.user.id;
+  try {
+    await pool.query('INSERT INTO likes (user_id, recipe_id) VALUES ($1, $2)', [userId, recipeId]);
+    res.json({ message: 'Liked' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
 });
 
-// Like recipe
-router.post('/:slug/like', auth, async (req, res) => {
-  const recipeRes = await pool.query('SELECT id FROM recipes WHERE slug=$1', [req.params.slug]);
-  if (!recipeRes.rows[0]) return res.status(404).json({ error: 'Recipe not found' });
-  const recipeId = recipeRes.rows[0].id;
-  await pool.query('INSERT INTO likes (recipe_id, user_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [recipeId, req.userId]);
-  res.json({ ok: true });
+// POST save/bookmark a recipe
+router.post('/:id/save', authenticateToken, async (req, res) => {
+  const recipeId = req.params.id;
+  const userId = req.user.id;
+  try {
+    await pool.query('INSERT INTO saves (user_id, recipe_id) VALUES ($1, $2)', [userId, recipeId]);
+    res.json({ message: 'Saved' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// POST add a comment to a recipe
+router.post('/:id/comments', authenticateToken, async (req, res) => {
+  const recipeId = req.params.id;
+  const userId = req.user.id;
+  const { comment } = req.body;
+  try {
+    const newCommentRes = await pool.query(
+      'INSERT INTO comments (user_id, recipe_id, comment) VALUES ($1, $2, $3) RETURNING id',
+      [userId, recipeId, comment]
+    );
+    const newCommentId = newCommentRes.rows[0].id;
+    // Get the username of the commenter
+    const userRes = await pool.query('SELECT name FROM users WHERE id = $1', [userId]);
+    const username = userRes.rows[0].name;
+    res.json({ id: newCommentId, comment, username });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// DELETE a recipe (admin only)
+router.delete('/:id', authenticateToken, async (req, res) => {
+  if (!req.user.isAdmin) {
+    return res.sendStatus(403);
+  }
+  const recipeId = req.params.id;
+  try {
+    await pool.query('DELETE FROM recipes WHERE id = $1', [recipeId]);
+    res.json({ message: 'Recipe deleted' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// DELETE a comment (admin only)
+router.delete('/:recipeId/comments/:commentId', authenticateToken, async (req, res) => {
+  if (!req.user.isAdmin) {
+    return res.sendStatus(403);
+  }
+  const commentId = req.params.commentId;
+  try {
+    await pool.query('DELETE FROM comments WHERE id = $1', [commentId]);
+    res.json({ message: 'Comment deleted' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
 });
 
 module.exports = router;
