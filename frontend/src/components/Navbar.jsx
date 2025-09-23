@@ -1,47 +1,35 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import DarkModeToggle from './DarkModeToggle';
-import { logout } from '../utils/auth';
 
-export default function Navbar() {
-  const [user, setUser] = useState(null);
+const Navbar = () => {
   const navigate = useNavigate();
+  const isLoggedIn = !!localStorage.getItem('token');
 
-  useEffect(() => {
-    const t = localStorage.getItem('flavornest_token');
-    setUser(!!t);
-  }, []);
-
-  function handleLogout() {
-    logout();
-    setUser(null);
-    navigate('/');
-  }
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    navigate('/login');
+  };
 
   return (
-    <nav className="bg-white dark:bg-gray-800 sticky top-0 z-20 shadow">
-      <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link to="/" className="text-2xl font-bold text-orange-500">FlavorNest</Link>
-          <Link to="/" className="hidden md:inline text-sm">Home</Link>
-          <Link to="/upload" className="hidden md:inline text-sm">Upload</Link>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <DarkModeToggle />
-          {user ? (
+    <nav className="bg-gray-800 p-4">
+      <div className="container mx-auto flex justify-between">
+        <Link to="/" className="font-bold text-white">FlavorNest</Link>
+        <div className="flex space-x-4">
+          {!isLoggedIn ? (
             <>
-              <Link to="/profile" className="px-3 py-1 rounded bg-indigo-500 text-white text-sm">Profile</Link>
-              <button onClick={handleLogout} className="px-3 py-1 rounded bg-red-500 text-white text-sm">Logout</button>
+              <Link to="/login" className="text-gray-300 hover:text-white">Login</Link>
+              <Link to="/signup" className="text-gray-300 hover:text-white">Sign Up</Link>
             </>
           ) : (
             <>
-              <Link to="/login" className="px-3 py-1 rounded bg-indigo-500 text-white text-sm">Login</Link>
-              <Link to="/signup" className="px-3 py-1 rounded bg-green-500 text-white text-sm">Sign up</Link>
+              <Link to="/upload" className="text-gray-300 hover:text-white">Upload Recipe</Link>
+              <button onClick={handleLogout} className="text-gray-300 hover:text-white">Logout</button>
             </>
           )}
         </div>
       </div>
     </nav>
   );
-}
+};
+
+export default Navbar;
