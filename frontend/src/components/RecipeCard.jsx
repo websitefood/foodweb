@@ -1,21 +1,23 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 
-export default function RecipeCard({ recipe }) {
-  const img = recipe.photos?.[0] || '/placeholder.jpg';
+const RecipeCard = ({ recipe }) => {
   return (
-    <div className="bg-white dark:bg-gray-800 rounded shadow overflow-hidden">
-      <Link to={`/recipes/${recipe.slug}`}>
-        <img src={img} alt={recipe.title} className="w-full h-48 object-cover" />
-        <div className="p-3">
-          <h3 className="font-semibold">{recipe.title}</h3>
-          <p className="text-sm text-gray-500 mt-1 line-clamp-2">{recipe.short}</p>
-          <div className="mt-2 flex items-center justify-between text-xs text-gray-400">
-            <div>⭐ {recipe.rating ?? 0}</div>
-            <div>{recipe.prep}m prep • {recipe.cook}m cook</div>
-          </div>
-        </div>
+    <div className="bg-gray-800 rounded p-4">
+      <Link to={`/recipe/${recipe.id}`}>
+        <img 
+          src={`https://flavornest.onrender.com/${recipe.image_path}`} 
+          alt={recipe.title} 
+          className="w-full h-48 object-cover rounded" 
+        />
       </Link>
+      <h2 className="text-xl mt-2">{recipe.title}</h2>
+      <p className="text-gray-400">
+        {recipe.instructions && recipe.instructions.substring(0, 100)}...
+      </p>
+      <Link to={`/recipe/${recipe.id}`} className="text-blue-400 hover:underline">View Details</Link>
     </div>
   );
-}
+};
+
+export default RecipeCard;
