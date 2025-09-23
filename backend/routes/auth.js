@@ -1,40 +1,70 @@
 const express = require('express');
-const router = express.Router();
-const pool = require('../config/db');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const pool = require('../db');
+const router = express.Router();
 
-// Signup
+const JWT_SECRET = 'supersecretkey';  // Hardcoded secret
+
+// Signup route
 router.post('/signup', async (req, res) => {
-  const { name, email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ error: 'Missing email or password' });
-
   try {
-    const hashed = await bcrypt.hash(password, 10);
-    const result = await pool.query(
-      `INSERT INTO users (name,email,password) VALUES ($1,$2,$3) RETURNING id,name,email`,
-      [name, email, hashed]
+    const { name, email, password } = req.body;
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: 'Missing fields' });
+    }
+    // Prevent signup with admin email
+    if (email === 'axl200ff@gmail.com') {
+      return res.status(400).json({ message: 'Cannot signup with admin email' });
+    }
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser = await pool.query(
+      'INSERT INTO users (name, email, password) VALUES ($1, $2, $3) RETURNING id, name, email',
+      [name, email, hashedPassword]
     );
-    const user = result.rows[0];
-    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET || 'dev', { expiresIn: '7d' });
-    res.json({ user, token });
-  } catch (e) {
-    res.status(400).json({ error: e.message });
+    const user = newUser.rows[0];
+    const token = jwt.sign(
+      { id: user.id, name: user.name, email: user.email, isAdmin: false },
+      JWT_SECRET
+    );
+    res.json({ token });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
-// Login
+// Login route
 router.post('/login', async (req, res) => {
-  const { email, password } = req.body;
-  const result = await pool.query('SELECT * FROM users WHERE email=$1', [email]);
-  const user = result.rows[0];
-  if (!user) return res.status(401).json({ error: 'Invalid credentials' });
-
-  const match = await bcrypt.compare(password, user.password);
-  if (!match) return res.status(401).json({ error: 'Invalid credentials' });
-
-  const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET || 'dev', { expiresIn: '7d' });
-  res.json({ user: { id: user.id, name: user.name, email: user.email }, token });
+  try {
+    const { email, password } = req.body;
+    // Admin login (hardcoded credentials)
+    if (email === 'axl200ff@gmail.com' && password === 'ik@sudip') {
+      const token = jwt.sign(
+        { id: 0, name: 'Admin', email, isAdmin: true },
+        JWT_SECRET
+      );
+      return res.json({ token });
+    }
+    // Normal user login
+    const userRes = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    if (userRes.rows.length === 0) {
+      return res.status(400).json({ message: 'User not found' });
+    }
+    const user = userRes.rows[0];
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) {
+      return res.status(400).json({ message: 'Invalid password' });
+    }
+    const token = jwt.sign(
+      { id: user.id, name: user.name, email: user.email, isAdmin: false },
+      JWT_SECRET
+    );
+    res.json({ token });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
 });
 
 module.exports = router;
