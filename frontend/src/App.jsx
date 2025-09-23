@@ -1,34 +1,26 @@
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import Navbar from "./components/Navbar";
-import Footer from "./components/Footer";
-import Home from "./pages/Home";
-import RecipeDetails from "./pages/RecipeDetails";
-import RecipeUpload from "./pages/RecipeUpload";
-import Login from "./pages/Login";
-import Signup from "./pages/Signup";
-import Profile from "./pages/Profile";
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import Navbar from './components/Navbar';
+import HomePage from './pages/HomePage';
+import RecipeDetailPage from './pages/RecipeDetailPage';
+import LoginPage from './pages/LoginPage';
+import SignupPage from './pages/SignupPage';
+import UploadPage from './pages/UploadPage';
 
 function App() {
   return (
     <Router>
-      <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors">
-        {/* Navbar */}
+      <div className="min-h-screen bg-gray-900 text-white">
         <Navbar />
-
-        {/* Main content */}
-        <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="container mx-auto px-4 py-6">
           <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/recipes/:id" element={<RecipeDetails />} />
-            <Route path="/upload" element={<RecipeUpload />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
-            <Route path="/profile" element={<Profile />} />
+            <Route path="/" element={<HomePage />} />
+            <Route path="/recipe/:id" element={<RecipeDetailPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/signup" element={<SignupPage />} />
+            <Route path="/upload" element={<UploadPage />} />
           </Routes>
-        </main>
-
-        {/* Footer */}
-        <Footer />
+        </div>
       </div>
     </Router>
   );
