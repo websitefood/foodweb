@@ -12,10 +12,25 @@ function writeRecipes(data) {
 }
 
 exports.getAll = (req, res) => {
-  const recipes = readRecipes();
+  let recipes = readRecipes();
+
+  // Featured filter (existing)
   if (req.query.featured) {
-    return res.json(recipes.filter(r => r.featured));
+    recipes = recipes.filter(r => r.featured);
   }
+
+  // Search support: ?q=term
+  if (req.query.q) {
+    const q = req.query.q.toLowerCase();
+    recipes = recipes.filter(r => {
+      const inTitle = (r.title || '').toLowerCase().includes(q);
+      const inDesc = (r.description || '').toLowerCase().includes(q);
+      const inIngredients = (r.ingredients || []).join(' ').toLowerCase().includes(q);
+      const inSteps = (r.steps || []).join(' ').toLowerCase().includes(q);
+      return inTitle || inDesc || inIngredients || inSteps;
+    });
+  }
+
   res.json(recipes);
 };
 
@@ -30,19 +45,40 @@ exports.getOne = (req, res) => {
 };
 
 exports.create = (req, res) => {
-  const { title, description, difficulty, time, servings, ingredients, steps } = req.body;
+  // Support both string (newline-separated) or array input for ingredients/steps
+  let { title, description, difficulty, time, servings, ingredients, steps } = req.body;
   const recipes = readRecipes();
   let imageUrl = '';
+
   if (req.file) {
+    // store accessible path (ensure server serves /images from uploads folder)
     imageUrl = `/images/${req.file.filename}`;
   }
+
+  // Normalize ingredients/steps
+  if (!ingredients) ingredients = [];
+  else if (Array.isArray(ingredients)) ingredients = ingredients;
+  else ingredients = String(ingredients).split('\n').map(s => s.trim()).filter(Boolean);
+
+  if (!steps) steps = [];
+  else if (Array.isArray(steps)) steps = steps;
+  else steps = String(steps).split('\n').map(s => s.trim()).filter(Boolean);
+
   const newRecipe = {
-    id: uuidv4(), title, description, difficulty,
-    time: parseInt(time), servings: parseInt(servings),
-    ingredients: ingredients.split('\n'),
-    steps: steps.split('\n'),
-    imageUrl, views: 0, featured: false, ratings: []
+    id: uuidv4(),
+    title: title || 'Untitled',
+    description: description || '',
+    difficulty: difficulty || 'Easy',
+    time: parseInt(time) || 0,
+    servings: parseInt(servings) || 1,
+    ingredients,
+    steps,
+    imageUrl,
+    views: 0,
+    featured: false,
+    ratings: []
   };
+
   recipes.push(newRecipe);
   writeRecipes(recipes);
   res.status(201).json(newRecipe);
