@@ -1,14 +1,22 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 
 const AddRecipe = () => {
   const [form, setForm] = useState({
     title: '', description: '', difficulty: 'Easy',
     time: 0, servings: 1, ingredients: '', steps: '', image: null
   });
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState('');
+  const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
+    setError('');
+    setSuccess(false);
 
     try {
       const data = new FormData();
@@ -17,26 +25,27 @@ const AddRecipe = () => {
       data.append('difficulty', form.difficulty);
       data.append('time', String(form.time));
       data.append('servings', String(form.servings));
+      data.append('ingredients', form.ingredients); // newline separated
+      data.append('steps', form.steps); // newline separated
+      if (form.image) data.append('image', form.image);
 
-      // Send ingredients & steps as repeated fields so backend can parse arrays
-      const ingredientLines = form.ingredients.split('\n').map(s => s.trim()).filter(Boolean);
-      const stepLines = form.steps.split('\n').map(s => s.trim()).filter(Boolean);
-      ingredientLines.forEach(item => data.append('ingredients[]', item));
-      stepLines.forEach(item => data.append('steps[]', item));
+      // Auth: send token if present
+      const token = localStorage.getItem('token');
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
-      if (form.image) {
-        data.append('image', form.image);
-      }
+      // Don't set Content-Type manually
+      const res = await axios.post('/api/recipes', data, { headers });
+      setSuccess(true);
+      setLoading(false);
 
-      // Use relative path (works when frontend and backend are served from same origin)
-      // or replace with the exact backend base URL if different.
-      const res = await axios.post('/api/recipes', data);
-      alert('Recipe added!');
+      // Short success animation, then go to recipes
+      setTimeout(() => {
+        navigate('/recipes');
+      }, 1400);
     } catch (err) {
-      console.error(err);
-      // Prefer showing server message if available
       const msg = err?.response?.data?.message || err.message || 'Error adding recipe';
-      alert(`Failed to add recipe: ${msg}`);
+      setError(msg);
+      setLoading(false);
     }
   };
 
@@ -97,10 +106,32 @@ const AddRecipe = () => {
           accept="image/*"
           onChange={e => setForm({...form, image: e.target.files[0]})}
         />
-        <button type="submit" className="px-6 py-3 bg-primary text-white rounded hover:bg-orange-600 transition">
-          Submit Recipe
+        <button type="submit" className="px-6 py-3 bg-primary text-white rounded hover:bg-orange-600 transition flex items-center justify-center" disabled={loading}>
+          {loading ? (
+            <svg className="animate-spin h-5 w-5 mr-2 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+            </svg>
+          ) : null}
+          {loading ? 'Adding...' : 'Submit Recipe'}
         </button>
       </form>
+
+      {error && <div className="mt-4 text-red-400">{error}</div>}
+
+      {success && (
+        <div className="mt-6 flex items-center space-x-3">
+          <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center">
+            <svg className="w-6 h-6 text-white animate-pulse" viewBox="0 0 24 24" fill="none">
+              <path d="M20 6L9 17l-5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </div>
+          <div>
+            <div className="font-semibold">Recipe added!</div>
+            <div className="text-sm text-gray-300">Successfully added. Redirecting to recipes...</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
