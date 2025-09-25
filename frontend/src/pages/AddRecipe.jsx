@@ -7,23 +7,37 @@ const AddRecipe = () => {
     time: 0, servings: 1, ingredients: '', steps: '', image: null
   });
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    const data = new FormData();
-    data.append('title', form.title);
-    data.append('description', form.description);
-    data.append('difficulty', form.difficulty);
-    data.append('time', form.time);
-    data.append('servings', form.servings);
-    data.append('ingredients', form.ingredients);
-    data.append('steps', form.steps);
-    data.append('image', form.image);
 
-    axios.post('https://flavornest.onrender.com/api/recipes', data, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    })
-      .then(res => { alert('Recipe added!'); })
-      .catch(err => console.error(err));
+    try {
+      const data = new FormData();
+      data.append('title', form.title);
+      data.append('description', form.description);
+      data.append('difficulty', form.difficulty);
+      data.append('time', String(form.time));
+      data.append('servings', String(form.servings));
+
+      // Send ingredients & steps as repeated fields so backend can parse arrays
+      const ingredientLines = form.ingredients.split('\n').map(s => s.trim()).filter(Boolean);
+      const stepLines = form.steps.split('\n').map(s => s.trim()).filter(Boolean);
+      ingredientLines.forEach(item => data.append('ingredients[]', item));
+      stepLines.forEach(item => data.append('steps[]', item));
+
+      if (form.image) {
+        data.append('image', form.image);
+      }
+
+      // Use relative path (works when frontend and backend are served from same origin)
+      // or replace with the exact backend base URL if different.
+      const res = await axios.post('/api/recipes', data);
+      alert('Recipe added!');
+    } catch (err) {
+      console.error(err);
+      // Prefer showing server message if available
+      const msg = err?.response?.data?.message || err.message || 'Error adding recipe';
+      alert(`Failed to add recipe: ${msg}`);
+    }
   };
 
   return (
