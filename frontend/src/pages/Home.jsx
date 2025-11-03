@@ -1,7 +1,9 @@
+// (ফাইলের উপরের অংশ অপরিবর্তিত থাকলে শুধু নিচের অংশটি ব্যবহার করুন)
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import RecipeCard from '../components/RecipeCard';
 import axios from 'axios';
+import AdSense from '../components/AdSense'; // <-- import here
 
 const Home = () => {
   const { t } = useTranslation();
@@ -27,6 +29,12 @@ const Home = () => {
           </div>
         </div>
       </section>
+
+      {/* INSERT AD HERE: responsive ad between hero and featured */}
+      <div className="container mx-auto py-6 px-4 md:px-0">
+        <AdSense adSlot="YYYYYYYYYYY" />
+      </div>
+
       {/* Featured Recipes */}
       <section id="featured" className="container mx-auto py-12 px-4 md:px-0">
         <h2 className="text-3xl font-bold text-center mb-4">{t('featuredTitle')}</h2>
